@@ -777,6 +777,7 @@ error:
 		IMPAPI(DeleteEnvelopePointRange); // v5pre5+
 		IMPAPI(DeleteEnvelopePointRangeEx); // v5.4pre3+
 		IMPAPI(DeleteActionShortcut);
+		IMPAPI(DeleteExtState);
 		IMPAPI(DeleteProjectMarker);
 		IMPAPI(DeleteProjectMarkerByIndex);
 		IMPAPI(DeleteTakeStretchMarkers);
@@ -1060,6 +1061,7 @@ error:
 		IMPAPI(SetEnvelopePoint); // v5pre4+
 		IMPAPI(SetEnvelopePointEx) // v5.40pre3
 		IMPAPI(SetEnvelopeStateChunk);
+		IMPAPI(SetExtState);
 		IMPAPI(SetGlobalAutomationOverride);
 		IMPAPI(SetMasterTrackVisibility);
 		IMPAPI(SetMediaItemInfo_Value);
