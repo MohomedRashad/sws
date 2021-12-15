@@ -473,14 +473,20 @@ static void importExtensionAPI()
 // and callbacks for some "track params have changed"
 class SWSTimeSlice : public IReaperControlSurface
 {
+	enum ACUpdateFlags {
+		ACUpdate_None             = 0x0000,
+		ACUpdate_AutoColorTrack   = 0x0001,
+		ACUpdate_TrackListChange  = 0x0002,
+		ACUpdate_TrackTitle       = 0x0004
+	};
+
 public:
 	const char *GetTypeString() { return ""; }
 	const char *GetDescString() { return ""; }
 	const char *GetConfigString() { return ""; }
 
-	bool m_bChanged;
-	int m_iACIgnore;
-	SWSTimeSlice() : m_bChanged(false), m_iACIgnore(0) {}
+	int m_iACUpdateFlags;
+	SWSTimeSlice() : m_iACUpdateFlags(ACUpdate_None) {}
 
 	void Run() // BR: Removed some stuff from here and made it use plugin_register("timer"/"-timer") - it's the same thing as this but it enables us to remove unused stuff completely
 	{          // I guess we could do the rest too (and add user options to enable where needed)...
@@ -488,13 +494,34 @@ public:
 		ZoomSlice();
 		MiscSlice();
 
-		if (m_bChanged)
+		if (m_iACUpdateFlags)
 		{
-			m_bChanged = false;
-			ScheduleTracklistUpdate();
-			g_pMarkerList->Update();
-			UpdateSnapshotsDialog();
-			ProjectListUpdate();
+			bool trackListUpdate = m_iACUpdateFlags & ACUpdate_TrackListChange;
+			bool titleUpdate = m_iACUpdateFlags & ACUpdate_TrackTitle;
+			bool wantsTrackListScheduled = trackListUpdate || titleUpdate;
+
+			AutoColorTrack(false);
+
+			if (trackListUpdate)
+			{
+				AutoColorMarkerRegion(false);
+				SNM_CSurfSetTrackListChange();
+				g_pMarkerList->Update();
+				UpdateSnapshotsDialog();
+				ProjectListUpdate();
+			}
+
+			if (wantsTrackListScheduled)
+			{
+				ScheduleTracklistUpdate();
+			}
+
+			if (titleUpdate)
+			{
+				SNM_CSurfSetTrackTitle();
+			}
+
+			m_iACUpdateFlags = ACUpdate_None;
 		}
 	}
 
@@ -509,25 +536,15 @@ public:
 	// This is our only notification of active project tab change, so update everything
 	void SetTrackListChange()
 	{
-		m_bChanged = true;
-		AutoColorTrack(false);
-		AutoColorMarkerRegion(false);
-		SNM_CSurfSetTrackListChange();
-		m_iACIgnore = GetNumTracks() + 1;
+		m_iACUpdateFlags |= ACUpdate_TrackListChange;
 	}
+
 	// For every SetTrackListChange we get NumTracks+1 SetTrackTitle calls, but we only
 	// want to call AutoColorRun once, so ignore those n+1.
 	// However, we still need to trap track name changes with no track list change.
 	void SetTrackTitle(MediaTrack *tr, const char *c)
 	{
-		ScheduleTracklistUpdate();
-		if (!m_iACIgnore)
-		{
-			AutoColorTrack(false);
-			SNM_CSurfSetTrackTitle();
-		}
-		else
-			m_iACIgnore--;
+		m_iACUpdateFlags |= ACUpdate_TrackTitle;
 	}
 
 	void OnTrackSelection(MediaTrack *tr) // 3 problems with this (last check v5.0pre28): doesn't work if Mixer option "Scroll view when tracks activated" is disabled
@@ -552,6 +569,15 @@ public:
 	{
 		BR_CSurf_Extended(call, parm1, parm2, parm3);
 		SNM_CSurfExtended(call, parm1, parm2, parm3);
+
+		switch(call)
+		{
+		case CSURF_EXT_SETFXCHANGE:
+		case CSURF_EXT_SETINPUTMONITOR: // input/output change
+			m_iACUpdateFlags |= ACUpdate_AutoColorTrack;
+			break;
+		}
+
 		return 0;
 	}
 };
